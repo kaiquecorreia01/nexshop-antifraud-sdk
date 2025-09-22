@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexShop - Simulação de Login com SDK Antifraude</title>
+    <!-- TailwindCSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen font-sans">
+
+    <!-- O React precisa deste div para saber onde renderizar a aplicação -->
+    <div id="root"></div>
+
+    <!-- SCRIPTS MOVIDOS PARA O FINAL DO BODY PARA GARANTIR A ORDEM DE CARREGAMENTO CORRETA -->
+
+    <!-- 1. Carregar React -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    
+    <!-- 2. Carregar Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- 3. Carregar o nosso SDK -->
+    <script src="./nexshop-fraud-sdk.js"></script>
+
+    <!-- 4. Finalmente, executar o código da nossa aplicação React -->
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Componente para exibir o resultado da análise do SDK
+        const ResultCard = ({ result }) => {
+            if (!result) return null;
+
+            const baseClasses = "mt-6 p-4 rounded-lg text-sm";
+            const statusStyles = {
+                allow: "bg-green-100 border-green-400 text-green-800",
+                review: "bg-yellow-100 border-yellow-400 text-yellow-800",
+                deny: "bg-red-100 border-red-400 text-red-800",
+                error: "bg-gray-200 border-gray-400 text-gray-800",
+            };
+            
+            const statusLabels = {
+                allow: "Aprovado",
+                review: "Revisão Necessária",
+                deny: "Negado",
+                error: "Erro",
+            };
+
+            return (
+                <div className={`${baseClasses} ${statusStyles[result.status]}`}>
+                    <h3 className="font-bold">Resultado da Análise: {statusLabels[result.status]}</h3>
+                    <p><strong>Score de Risco:</strong> {result.score}</p>
+                    <p><strong>Motivo:</strong> {result.message}</p>
+                    {result.triggeredRules && result.triggeredRules.length > 0 && (
+                        <p><strong>Regras Acionadas:</strong> {result.triggeredRules.join(', ')}</p>
+                    )}
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [userId, setUserId] = useState('user123');
+            const [isLoading, setIsLoading] = useState(false);
+            const [analysisResult, setAnalysisResult] = useState(null);
+
+            // Inicializa o SDK Antifraude quando o componente é montado
+            useEffect(() => {
+                // Com os scripts no final do body, o SDK já estará disponível aqui
+                if (window.NexShopFraudSDK) {
+                    window.NexShopFraudSDK.init({
+                        backendUrl: 'http://localhost:3001/identity/verify',
+                    });
+                } else {
+                    console.error("SDK de Fraude ainda não está disponível. Verifique a ordem dos scripts.");
+                }
+            }, []);
+
+            const handleLogin = async (event) => {
+                event.preventDefault();
+                setIsLoading(true);
+                setAnalysisResult(null);
+
+                const contextData = {
+                    userId: userId,
+                    sessionId: 'session_abc_123_xyz',
+                    actionType: 'login',
+                };
+                
+                console.log("Enviando dados para análise...");
+                const result = await window.NexShopFraudSDK.sendData(contextData);
+                console.log("Resultado da análise:", result);
+
+                setAnalysisResult(result);
+                setIsLoading(false);
+            };
+
+            return (
+                <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg">
+                    <div className="text-center mb-8">
+                        <h1 className="text-2xl font-bold text-gray-800">NexShop</h1>
+                        <p className="text-gray-500">Login Seguro</p>
+                    </div>
+
+                    <form onSubmit={handleLogin}>
+                        <div className="mb-4">
+                            <label htmlFor="user-select" className="block text-sm font-medium text-gray-700 mb-1">
+                                Simular Login como:
+                            </label>
+                            <select
+                                id="user-select"
+                                value={userId}
+                                onChange={(e) => setUserId(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                                <option value="user123">Usuário Existente (user123)</option>
+                                <option value="user_new">Novo Usuário (sem histórico)</option>
+                                <option value="user456">Outro Usuário Existente (user456)</option>
+                            </select>
+                        </div>
+                        
+                        <div className="mb-6">
+                            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                                Senha
+                            </label>
+                            <input
+                                type="password"
+                                id="password"
+                                defaultValue="********"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300 disabled:cursor-not-allowed"
+                        >
+                            {isLoading ? 'Analisando...' : 'Entrar'}
+                        </button>
+                    </form>
+                    
+                    <ResultCard result={analysisResult} />
+                </div>
+            );
+        };
+        
+        // Renderiza a aplicação
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+
+    </script>
+
+</body>
+</html>
